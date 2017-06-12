@@ -448,7 +448,7 @@ class wwdcVideosController {
 
 func showHelpAndExit() {
     print("wwdc2017 - a simple swifty video sessions bulk download.\nJust Get'em all!")
-    print("usage: wwdc2017.swift [--hd] [--sd] [--pdf] [--pdf-only] [--sessions] [--sample] [--list-only] [--help]\n")
+    print("usage: wwdc2017.swift [--hd] [--sd] [--pdf] [--pdf-only] [--sessions] [--sample] [--sample-only] [--list-only] [--help]\n")
     exit(0)
 }
 
@@ -490,6 +490,11 @@ for argument in arguments {
 
     case "--sample":
         shouldDownloadSampleCodeResource = true
+        gettingSessions = false
+
+    case "--sample-only":
+        shouldDownloadSampleCodeResource = true
+        shouldDownloadVideoResource = false
         gettingSessions = false
 
     case "--sessions", "-s":

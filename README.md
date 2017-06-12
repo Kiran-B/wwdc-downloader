@@ -25,7 +25,7 @@ downloads by default WWDC 2017 HD videos sessions.
 ### Options
 You can try `wwdc2017.swift --help` for more options.
 
-Usage: 	wwdc2017.swift [--hd] [--sd] [--pdf] [--pdf-only] [--sessions <s1 s2 ...>] [--list-only] [--help]
+Usage: 	wwdc2017.swift [--hd] [--sd] [--pdf] [--pdf-only] [--sample] [--sample-only] [--sessions <s1 s2 ...>] [--list-only] [--help]
 
 Examples:
 
