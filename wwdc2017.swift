@@ -374,19 +374,74 @@ class wwdcVideosController {
 
     class func downloadFile(urlString: String, forSession sessionIdentifier: String = "???") {
         let fileName = URL(fileURLWithPath: urlString).lastPathComponent
-
-        guard !FileManager.default.fileExists(atPath: "./" + fileName) else {
-            print("\(fileName): already exists, nothing to do!")
-            return
-        }
-
-        print("[Session \(sessionIdentifier)] Getting \(fileName) (\(urlString)):")
+        let fileExtension = URL(fileURLWithPath: urlString).pathExtension
+        let fileNameSansExtension = URL(fileURLWithPath: urlString).deletingPathExtension().lastPathComponent
 
         guard let url = URL(string: urlString) else {
             print("<\(urlString)> is not valid URL!")
             return
         }
 
+        if FileManager.default.fileExists(atPath: "./" + fileName)
+        {
+            print("\(fileName): already exists. Check whether earlier download was accurate!")
+
+            var didFileSizeMatch:Bool = false
+            do
+            {
+                let fileAttributes = try FileManager.default.attributesOfItem(atPath: "./" + fileName)
+                let fileSize = fileAttributes[FileAttributeKey.size] as! UInt64
+                print("\(fileName): locally weighs \(fileSize)!")
+
+                var request = URLRequest(url: url)
+                request.httpMethod = "HEAD"
+                let semaphore = DispatchSemaphore(value: 0)
+                let task = URLSession.shared.dataTask(with: request) { data, response, error in
+                    guard let data = data, error == nil else {                                                 // check for fundamental networking error
+                        print("error=\(String(describing: error))")
+                        semaphore.signal()
+                        return
+                    }
+
+                    let httpStatus = response as? HTTPURLResponse
+                    let contentLengthString:String = (httpStatus?.allHeaderFields["Content-Length"] as? String)!
+                    let fileSizeString = "\(fileSize)";
+                    print("\(fileName): remotely weighs \(contentLengthString)!")
+
+                    didFileSizeMatch = (contentLengthString == fileSizeString)
+
+                    semaphore.signal()
+                }
+                task.resume()
+                _ = semaphore.wait(timeout: DispatchTime.distantFuture)
+            }
+            catch
+            {
+            }
+
+            if didFileSizeMatch
+            {
+                return
+            }
+            else
+            {
+                // Backup the earlier download and proceed for re-download
+                do
+                {
+                    let formatter = DateFormatter()
+                    formatter.dateFormat = "yyyy_MM_dd_HHmmss"
+                    let newFileName = fileNameSansExtension + "_" + formatter.string(from: Date()) + "." + fileExtension
+                    try FileManager.default.moveItem(atPath:  "./" + fileName, toPath: newFileName)
+                }
+
+                catch let error {
+                    print("Ooops! Something went wrong: \(error)")
+                }
+
+            }
+        }
+
+        print("[Session \(sessionIdentifier)] Getting \(fileName) (\(urlString)):")
         DownloadSessionManager.sharedInstance.downloadFile(fromURL: url, toPath: "\(fileName)")
     }
 }
@@ -453,6 +508,14 @@ for argument in arguments {
         sessionsSet.insert(argument)
         break
         
+    case _ where argument.characters.count >= 1:
+        if(!gettingSessions) {
+            fallthrough
+        }
+
+        sessionsSet.insert(argument)
+        break
+
     default:
         print("\(argument) is not a \(#file) command.\n")
         showHelpAndExit()
