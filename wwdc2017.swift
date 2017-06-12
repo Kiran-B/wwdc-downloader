@@ -391,7 +391,7 @@ class wwdcVideosController {
             {
                 let fileAttributes = try FileManager.default.attributesOfItem(atPath: "./" + fileName)
                 let fileSize = fileAttributes[FileAttributeKey.size] as! UInt64
-                print("\(fileName): locally weighs \(fileSize)!")
+                print("\(fileName): locally  weighs [\(fileSize)]")
 
                 var request = URLRequest(url: url)
                 request.httpMethod = "HEAD"
@@ -406,7 +406,7 @@ class wwdcVideosController {
                     let httpStatus = response as? HTTPURLResponse
                     let contentLengthString:String = (httpStatus?.allHeaderFields["Content-Length"] as? String)!
                     let fileSizeString = "\(fileSize)";
-                    print("\(fileName): remotely weighs \(contentLengthString)!")
+                    print("\(fileName): remotely weighs [\(contentLengthString)]")
 
                     didFileSizeMatch = (contentLengthString == fileSizeString)
 
