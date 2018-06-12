@@ -1,24 +1,26 @@
-#!/usr/bin/swift -swift-version 4
+#!/usr/bin/swift
 
 /*
- Author: Olivier HO-A-CHUCK
- Date: June 17th 2017
- About this script:
- WWDC 2017 is ending and even if there are some great tools out there (https://github.com/insidegui/WWDC) that allow to see and download video sessions,
+	Author: Olivier HO-A-CHUCK
+	Date: June 17th 2017
+	About this script:
+ WWDC 2018 is ending and even if there are some great tools out there (https://github.com/insidegui/WWDC) that allow to see and download video sessions,
  I Still need to get my video doggy bag to fly back home. And Moscone alsways provide with great bandwidth.
  So as I had never really started to code in Swift I decided to start here (I know it's late - but I'm no more a developer) and copy/pasted some internet peace
  of codes to get a Swift Script that bulk download all sessions.
  You may have understand my usual disclamer : "I'm a Marketing guy" so don't blame my messy (Swift beginer) code.
  Please feel free to make this script better if you feel like so. There is plenty to do.
-
- License: Do what you want with it. But notice that this script comes with no warranty and will not be maintained.
- Usage: wwdc2017.swift
- Default behavior: without any options the script will download all available hd videos. And will re-take non fully downloaded ones.
- Please use --help option to get currently available options
-
- TODO:
+	
+	License: Do what you want with it. But notice that this script comes with no warranty and will not be maintained.
+	Usage: wwdc2018.swift
+	Default behavior: without any options the script will download all available hd videos. And will re-take non fully downloaded ones.
+	Please use --help option to get currently available options
+ 
+	TODO:
  - basically all previous script option (previuous years, checks, cleaner code, etc.)
-
+ 
+ 
+ Note: SF Tested with Apple Swift version 4.1.2 (swiftlang-902.0.54 clang-902.0.39.2)
  */
 
 import Cocoa
@@ -39,7 +41,7 @@ class Reachability {
         let needsConnection = flags.contains(.connectionRequired)
         return (isReachable && !needsConnection)
     }
-
+    
     class func getFlags() -> SCNetworkReachabilityFlags? {
         guard let reachability = ipv4Reachability() ?? ipv6Reachability() else {
             return nil
@@ -50,24 +52,24 @@ class Reachability {
         }
         return flags
     }
-
+    
     class func ipv6Reachability() -> SCNetworkReachability? {
         var zeroAddress = sockaddr_in6()
         zeroAddress.sin6_len = UInt8(MemoryLayout<sockaddr_in>.size)
         zeroAddress.sin6_family = sa_family_t(AF_INET6)
-
+        
         return withUnsafePointer(to: &zeroAddress, {
             $0.withMemoryRebound(to: sockaddr.self, capacity: 1) {
                 SCNetworkReachabilityCreateWithAddress(nil, $0)
             }
         })
     }
-
+    
     class func ipv4Reachability() -> SCNetworkReachability? {
         var zeroAddress = sockaddr_in()
         zeroAddress.sin_len = UInt8(MemoryLayout<sockaddr_in>.size)
         zeroAddress.sin_family = sa_family_t(AF_INET)
-
+        
         return withUnsafePointer(to: &zeroAddress, {
             $0.withMemoryRebound(to: sockaddr.self, capacity: 1) {
                 SCNetworkReachabilityCreateWithAddress(nil, $0)
@@ -95,24 +97,24 @@ struct Network {
 }
 
 class DownloadSessionManager : NSObject, URLSessionDownloadDelegate {
-
+    
     static let sharedInstance = DownloadSessionManager()
     var filePath : String?
     var url: URL?
     var resumeData: Data?
-
+    
     let semaphore = DispatchSemaphore.init(value: 0)
     var session : URLSession!
-
+    
     override init() {
         super.init()
         self.resetSession()
     }
-
+    
     func resetSession() {
         self.session = URLSession(configuration: URLSessionConfiguration.default, delegate: self, delegateQueue: nil)
     }
-
+    
     func downloadFile(fromURL url: URL, toPath path: String) {
         self.filePath = path
         self.url = url
@@ -122,11 +124,11 @@ class DownloadSessionManager : NSObject, URLSessionDownloadDelegate {
         task.resume()
         semaphore.wait()
     }
-
+    
     func resumeDownload() {
         //TODO: reset session in appropriate URLSessionDelegate function?
         self.resetSession()
-
+        
         if let resumeData = self.resumeData {
             print("resuming file download...")
             let task = session.downloadTask(withResumeData: resumeData)
@@ -138,8 +140,8 @@ class DownloadSessionManager : NSObject, URLSessionDownloadDelegate {
             self.downloadFile(fromURL: self.url!, toPath: self.filePath!)
         }
     }
-
-    func show(progress: Int, barWidth: Int, speedInK: Int) {
+    
+  func show(progress: Int, barWidth: Int, speedInK: Int) {
         print("\r[", terminator: "")
         let pos = Int(Double(barWidth*progress)/100.0)
         for i in 0...barWidth {
@@ -155,7 +157,7 @@ class DownloadSessionManager : NSObject, URLSessionDownloadDelegate {
                 break
             }
         }
-
+        
         print("] \(progress)% \(speedInK)KB/s", terminator:"")
         fflush(__stdoutp)
     }
@@ -167,64 +169,64 @@ class DownloadSessionManager : NSObject, URLSessionDownloadDelegate {
                     didWriteData bytesWritten: Int64,
                     totalBytesWritten: Int64,
                     totalBytesExpectedToWrite: Int64) {
-        let now = Date()
-        let timeDownloaded = now.timeIntervalSince(taskStartedAt!)
-        let kbs = Int( floor( Float(totalBytesWritten) / 1024.0 / Float(timeDownloaded) ) )
+      let now = Date()
+      let timeDownloaded = now.timeIntervalSince(taskStartedAt!)
+      let kbs = Int( floor( Float(totalBytesWritten) / 1024.0 / Float(timeDownloaded) ) )
         show(progress: Int(Double(totalBytesWritten)/Double(totalBytesExpectedToWrite)*100.0), barWidth: 70, speedInK: kbs)
     }
-
+    
     func urlSession(_: URLSession, downloadTask: URLSessionDownloadTask, didFinishDownloadingTo location: URL) {
         defer {
             semaphore.signal()
         }
-
+        
         print("")
-
+        
         guard let _ = self.filePath else {
             print("No destination path to copy the downloaded file at \(location)")
             return
         }
-
+        
         print("moving \(location) to \(self.filePath!)")
-
+        
         do {
             try FileManager.default.moveItem(at: location, to: URL.init(fileURLWithPath: "\(filePath!)"))
         }
-
+            
         catch let error {
             print("Ooops! Something went wrong: \(error)")
         }
     }
-
+    
     func urlSession(_: URLSession, task: URLSessionTask, didCompleteWithError error: Error?) {
         guard let error = error else {
             //No error. Already handled in URLSession(session: URLSession, downloadTask: URLSessionDownloadTask, didFinishDownloadingToURL location: URL)
             return
         }
-
+        
         defer {
             defer {
                 semaphore.signal()
             }
-
+            
             if !Reachability.isConnectedToNetwork() {
                 print("Waiting for connection to be restored")
                 repeat {
                     sleep(1)
                 } while !Reachability.isConnectedToNetwork()
             }
-
+            
             self.resumeDownload()
         }
-
+        
         print("")
-
+        
         print("Ooops! Something went wrong: \(error.localizedDescription)")
-
+        
         guard let resumeData = (error as NSError).userInfo[NSURLSessionDownloadTaskResumeData] as? Data else {
             return
         }
-
+        
         self.resumeData = resumeData
     }
 }
@@ -237,26 +239,22 @@ class wwdcVideosController {
         var videoURL = ""
         if !matches.isEmpty {
             let range = matches[0].range(at: 1)
-            let r = fromHTML.index(fromHTML.startIndex, offsetBy: range.location) ..<
-                fromHTML.index(fromHTML.startIndex, offsetBy: range.location+range.length)
-            videoURL = String(fromHTML[r])
+            videoURL = String(fromHTML[fromHTML.index(fromHTML.startIndex, offsetBy: range.location) ..< fromHTML.index(fromHTML.startIndex, offsetBy: range.location+range.length)])
         }
-
+        
         return videoURL
     }
-
+    
     class func getPDFResourceURL(fromHTML: String) -> (String) {
         let pat = "\\b.*(https://.*\\.pdf)\\b"
         let regex = try! NSRegularExpression(pattern: pat, options: [])
         let matches = regex.matches(in: fromHTML, options: [], range: NSRange(location: 0, length: fromHTML.count))
         var pdfResourceURL = ""
         if !matches.isEmpty {
-            let range = matches[0].range(at: 1)
-            let r = fromHTML.index(fromHTML.startIndex, offsetBy: range.location) ..<
-                fromHTML.index(fromHTML.startIndex, offsetBy: range.location+range.length)
-            pdfResourceURL = String(fromHTML[r])
+            let range = matches[0].range(at:1)
+            pdfResourceURL = String(fromHTML[fromHTML.index(fromHTML.startIndex, offsetBy: range.location) ..< fromHTML.index(fromHTML.startIndex, offsetBy: range.location+range.length)])
         }
-
+        
         return pdfResourceURL
     }
 
@@ -267,10 +265,8 @@ class wwdcVideosController {
         let matches = regex.matches(in: fromHTML, options: [], range: NSRange(location: 0, length: fromHTML.count))
         var title = ""
         if !matches.isEmpty {
-            let range = matches[0].range(at: 1)
-            let r = fromHTML.index(fromHTML.startIndex, offsetBy: range.location) ..<
-                fromHTML.index(fromHTML.startIndex, offsetBy: range.location+range.length)
-            title = String(fromHTML[r])
+            let range = matches[0].range(at:1)
+            title = String(fromHTML[fromHTML.index(fromHTML.startIndex, offsetBy: range.location) ..< fromHTML.index(fromHTML.startIndex, offsetBy: range.location+range.length)])
         }
 
         return title
@@ -282,22 +278,9 @@ class wwdcVideosController {
         let matches = regex.matches(in: fromHTML, options: [], range: NSRange(location: 0, length: fromHTML.count))
         var sampleURLPaths : [String] = []
         for match in matches {
-            let range = match.range(at: 1)
-            let r = fromHTML.index(fromHTML.startIndex, offsetBy: range.location) ..<
-                fromHTML.index(fromHTML.startIndex, offsetBy: range.location+range.length)
-            var path = String(fromHTML[r])
-
-            // Tack on the hostname if it's not already there (some URLs are listed as
-            // relative URL while some are fully-qualified).
-            let prefixReplacementString: String
-            if path.contains("href=\"http") == false {
-                prefixReplacementString = "https://developer.apple.com"
-            } else {
-                prefixReplacementString = ""
-            }
-            path = path.replacingOccurrences(of: "href=\"", with: prefixReplacementString)
-
-            // Strip target attribute suffix
+            let range = match.range(at:1)
+            var path = String(fromHTML[fromHTML.index(fromHTML.startIndex, offsetBy: range.location) ..< fromHTML.index(fromHTML.startIndex, offsetBy: range.location+range.length)])
+            path = path.replacingOccurrences(of: "href=\"", with: "https://developer.apple.com")
             path = path.replacingOccurrences(of: "\" target=\"", with: "/")
 
             sampleURLPaths.append(path)
@@ -327,19 +310,19 @@ class wwdcVideosController {
          And set session-wide properties, such as: HTTPAdditionalHeaders,
          HTTPCookieAcceptPolicy, requestCachePolicy or timeoutIntervalForRequest.
          */
-
+        
         /* Create session, and optionally set a URLSessionDelegate. */
         let session = URLSession(configuration: URLSessionConfiguration.default, delegate: nil, delegateQueue: nil)
-
+        
         /* Create the Request:
-         My API (2) (GET https://developer.apple.com/videos/play/wwdc2017/201/)
-         https://developer.apple.com/videos/play/wwdc2017/102/
+         My API (2) (GET https://developer.apple.com/videos/play/wwdc2018/201/)
+         https://developer.apple.com/videos/play/wwdc2018/102/
          */
         var result = ""
         guard let URL = URL(string: fromURL) else {return result}
         var request = URLRequest(url: URL)
         request.httpMethod = "GET"
-
+        
         /* Start a new Task */
         let semaphore = DispatchSemaphore.init(value: 0)
         let task = session.dataTask(with: request, completionHandler: { (data: Data?, response: URLResponse?, error: Error?) -> Void in
@@ -354,116 +337,55 @@ class wwdcVideosController {
                 /* Failure */
                 print("URL Session Task Failed: %@", error!.localizedDescription);
             }
-
+            
             semaphore.signal()
         })
         task.resume()
         semaphore.wait()
         return result
     }
-
+    
     class func getSessionsList(fromHTML: String) -> Array<String> {
-        let pat = "\"\\/videos\\/play\\/wwdc2017\\/([0-9]*)\\/\""
+        let pat = "\"\\/videos\\/play\\/wwdc2018\\/([0-9]*)\\/\""
         let regex = try! NSRegularExpression(pattern: pat, options: [])
-        let matches = regex.matches(in: fromHTML, options: [], range: NSRange(location: 0, length: fromHTML.characters.count))
+        let matches = regex.matches(in: fromHTML, options: [], range: NSRange(location: 0, length: fromHTML.count))
         var sessionsListArray = [String]()
         for match in matches {
             for n in 0..<match.numberOfRanges {
-                let range = match.rangeAt(n)
-                let r = fromHTML.index(fromHTML.startIndex, offsetBy: range.location) ..<
-                    fromHTML.index(fromHTML.startIndex, offsetBy: range.location+range.length)
+                let range = match.range(at:n)
                 switch n {
                 case 1:
                     //print(htmlSessionList.substring(with: r))
-                    sessionsListArray.append(fromHTML.substring(with: r))
+                    sessionsListArray.append(String(fromHTML[fromHTML.index(fromHTML.startIndex, offsetBy: range.location) ..< fromHTML.index(fromHTML.startIndex, offsetBy: range.location+range.length)]))
                 default: break
                 }
             }
         }
         return sessionsListArray
     }
-
+    
     class func downloadFile(urlString: String, forSession sessionIdentifier: String = "???") {
         let fileName = URL(fileURLWithPath: urlString).lastPathComponent
-        if fileName.hasPrefix(sessionIdentifier) == false {
-            fileName = "\(sessionIdentifier)_\(fileName)"
+        
+        guard !FileManager.default.fileExists(atPath: "./" + fileName) else {
+            print("\(fileName): already exists, nothing to do!")
+            return
         }
-
-        let fileExtension = URL(fileURLWithPath: urlString).pathExtension
-        let fileNameSansExtension = URL(fileURLWithPath: urlString).deletingPathExtension().lastPathComponent
-
+        
+        print("[Session \(sessionIdentifier)] Getting \(fileName) (\(urlString)):")
+        
         guard let url = URL(string: urlString) else {
             print("<\(urlString)> is not valid URL!")
             return
         }
-
-        if FileManager.default.fileExists(atPath: "./" + fileName)
-        {
-            print("\(fileName): already exists. Check whether earlier download was accurate!")
-
-            var didFileSizeMatch:Bool = false
-            do
-            {
-                let fileAttributes = try FileManager.default.attributesOfItem(atPath: "./" + fileName)
-                let fileSize = fileAttributes[FileAttributeKey.size] as! UInt64
-                print("\(fileName): locally  weighs [\(fileSize)]")
-
-                var request = URLRequest(url: url)
-                request.httpMethod = "HEAD"
-                let semaphore = DispatchSemaphore(value: 0)
-                let task = URLSession.shared.dataTask(with: request) { data, response, error in
-                    guard let _ = data, error == nil else {                                                 // check for fundamental networking error
-                        print("error=\(String(describing: error))")
-                        semaphore.signal()
-                        return
-                    }
-
-                    let httpStatus = response as? HTTPURLResponse
-                    let contentLengthString:String = (httpStatus?.allHeaderFields["Content-Length"] as? String)!
-                    let fileSizeString = "\(fileSize)";
-                    print("\(fileName): remotely weighs [\(contentLengthString)]")
-
-                    didFileSizeMatch = (contentLengthString == fileSizeString)
-
-                    semaphore.signal()
-                }
-                task.resume()
-                _ = semaphore.wait(timeout: DispatchTime.distantFuture)
-            }
-            catch
-            {
-            }
-
-            if didFileSizeMatch
-            {
-                return
-            }
-            else
-            {
-                // Backup the earlier download and proceed for re-download
-                do
-                {
-                    let formatter = DateFormatter()
-                    formatter.dateFormat = "yyyy_MM_dd_HHmmss"
-                    let newFileName = fileNameSansExtension + "_" + formatter.string(from: Date()) + "." + fileExtension
-                    try FileManager.default.moveItem(atPath:  "./" + fileName, toPath: newFileName)
-                }
-
-                catch let error {
-                    print("Ooops! Something went wrong: \(error)")
-                }
-
-            }
-        }
-
-        print("[Session \(sessionIdentifier)] Getting \(fileName) (\(urlString)):")
+        
         DownloadSessionManager.sharedInstance.downloadFile(fromURL: url, toPath: "\(fileName)")
     }
 }
 
 func showHelpAndExit() {
-    print("wwdc2017 - a simple swifty video sessions bulk download.\nJust Get'em all!")
-    print("usage: wwdc2017.swift [--hd] [--sd] [--pdf] [--pdf-only] [--sessions] [--sample] [--sample-only] [--list-only] [--help]\n")
+    print("wwdc2018 - a simple swifty video sessions bulk download.\nJust Get'em all!")
+    print("usage: wwdc2018.swift [--hd] [--sd] [--pdf] [--pdf-only] [--sessions] [--sample] [--list-only] [--help]\n")
     exit(0)
 }
 
@@ -481,23 +403,23 @@ arguments.remove(at: 0)
 
 for argument in arguments {
     switch argument {
-
+        
     case "-h", "--help":
         showHelpAndExit()
         break
-
+        
     case "--hd":
         format = .HD
         gettingSessions = false
-
+        
     case "--sd":
         format = .SD
         gettingSessions = false
-
+        
     case "--pdf":
         shouldDownloadPDFResource = true
         gettingSessions = false
-
+        
     case "--pdf-only":
         shouldDownloadPDFResource = true
         shouldDownloadVideoResource = false
@@ -505,11 +427,6 @@ for argument in arguments {
 
     case "--sample":
         shouldDownloadSampleCodeResource = true
-        gettingSessions = false
-
-    case "--sample-only":
-        shouldDownloadSampleCodeResource = true
-        shouldDownloadVideoResource = false
         gettingSessions = false
 
     case "--sessions", "-s":
@@ -528,14 +445,6 @@ for argument in arguments {
         sessionsSet.insert(argument)
         break
         
-    case _ where argument.characters.count >= 1:
-        if(!gettingSessions) {
-            fallthrough
-        }
-
-        sessionsSet.insert(argument)
-        break
-
     default:
         print("\(argument) is not a \(#file) command.\n")
         showHelpAndExit()
@@ -544,52 +453,43 @@ for argument in arguments {
 
 if(shouldDownloadVideoResource) {
     switch format {
-
+        
     case .HD:
         print("Downloading HD videos in current directory")
         break
-
+        
     case .SD:
         print("Downloading SD videos in current directory")
         break
-
+        
     }
 }
 
 func sortFunc(value1: String, value2: String) -> Bool {
-
-    let filteredVal1 = value1[..<value1.index(value1.startIndex, offsetBy: 3)]
-    let filteredVal2 = value2[..<value2.index(value2.startIndex, offsetBy: 3)]
-
+    
+    let filteredVal1 = value1[...value1.index(value1.startIndex, offsetBy: 3)]
+    let filteredVal2 = value2[...value2.index(value2.startIndex, offsetBy: 3)]
+    
     return filteredVal1 < filteredVal2;
 }
 
 /* Retreiving list of all video session */
-let htmlSessionListString = wwdcVideosController.getStringContent(fromURL: "https://developer.apple.com/videos/wwdc2017/")
-print("Let me ask Apple about currently available sessions. This can take some time (15 to 20 sec.) ...")
+let htmlSessionListString = wwdcVideosController.getStringContent(fromURL: "https://developer.apple.com/videos/wwdc2018/")
+print("Let me ask Apple about currently available sessions. This can take some times (15 to 20 sec.) ...")
 var sessionsListArray = wwdcVideosController.getSessionsList(fromHTML: htmlSessionListString)
 //get unique values
 sessionsListArray=Array(Set(sessionsListArray))
 
 /* getting individual videos */
 if sessionsSet.count != 0 {
-    print("Tailoring the download list for you...")
-
-    var filteredSessions : [String] = []
-    var sessionFilter = Array(sessionsSet)
-    for i in 0..<sessionFilter.count
-    {
-        filteredSessions += sessionsListArray.filter { nil != $0.range(of: sessionFilter[i], options: String.CompareOptions.regularExpression) }
-    }
-
-    sessionsListArray = filteredSessions;
-    print("Filtered the download list to :\(sessionsListArray)")
+    let sessionsListSet = Set(sessionsListArray)
+    sessionsListArray = Array(sessionsSet.intersection(sessionsListSet))
 }
 
 sessionsListArray.sort(by: sortFunc)
 
 for (_, value) in sessionsListArray.enumerated() {
-    let htmlText = wwdcVideosController.getStringContent(fromURL: "https://developer.apple.com/videos/play/wwdc2017/" + value + "/")
+    let htmlText = wwdcVideosController.getStringContent(fromURL: "https://developer.apple.com/videos/play/wwdc2018/" + value + "/")
 
     let title = wwdcVideosController.getTitle(fromHTML: htmlText)
     print("\n[Session \(value)] : \(title)")
